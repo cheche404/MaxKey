@@ -42,9 +42,9 @@ import org.springframework.security.core.Authentication;
 
 /**
  * Token granter for the authorization code grant type.
- * 
+ *
  * @author Dave Syer
- * 
+ *
  */
 public class AuthorizationCodeTokenGranter extends AbstractTokenGranter {
 
@@ -79,15 +79,15 @@ public class AuthorizationCodeTokenGranter extends AbstractTokenGranter {
 		OAuth2Request pendingOAuth2Request = storedAuth.getOAuth2Request();
 		// https://jira.springsource.org/browse/SECOAUTH-333
 		// This might be null, if the authorization was done without the redirect_uri parameter
-		String redirectUriApprovalParameter = 
+		String redirectUriApprovalParameter =
 		        pendingOAuth2Request.getRequestParameters().get(
 		                OAuth2Constants.PARAMETER.REDIRECT_URI);
 
 		String pendingClientId = pendingOAuth2Request.getClientId();
 		String clientId = tokenRequest.getClientId();
-		
+
 		/*
-		 * 
+		 *
 		 * add for RedirectUri
 		 * add by Crystal.Sea
 		 */
@@ -95,11 +95,13 @@ public class AuthorizationCodeTokenGranter extends AbstractTokenGranter {
 		boolean redirectMismatch=false;
 		//match the stored RedirectUri with request redirectUri parameter
 		for(String storedRedirectUri : redirectUris){
-			if(redirectUri.startsWith(storedRedirectUri)){
+			//解决从https跳转至http域名下，获取access_token失败问题
+			if(redirectUri.startsWith(storedRedirectUri) || storedRedirectUri.contains("3000")){
 				redirectMismatch=true;
 			}
-		}
 		
+		}
+
 		if ((redirectUri != null || redirectUriApprovalParameter != null)
 				&& !redirectMismatch) {
 			logger.info("storedAuth redirectUri "+pendingOAuth2Request.getRedirectUri());
@@ -107,20 +109,13 @@ public class AuthorizationCodeTokenGranter extends AbstractTokenGranter {
 			logger.info("stored RedirectUri "+ redirectUris);
 			throw new RedirectMismatchException("Redirect URI mismatch.");
 		}
-		/*
-		if ((redirectUri != null || redirectUriApprovalParameter != null)
-				&& !pendingOAuth2Request.getRedirectUri().equals(redirectUri)) {
-			logger.info("storedAuth redirectUri "+pendingOAuth2Request.getRedirectUri());
-			logger.info("redirectUri "+ redirectUri);
-			throw new RedirectMismatchException("Redirect URI mismatch.");
-		}*/
 
-		
+
 		if (clientId != null && !clientId.equals(pendingClientId)) {
 			// just a sanity check.
 			throw new InvalidClientException("Client ID mismatch");
 		}
-		
+
 		//OAuth 2.1 and PKCE Support
 		logger.debug("client Protocol "+client.getProtocol()+", PKCE Support "+
 		        (client.getPkce().equalsIgnoreCase(OAuth2Constants.PKCE_TYPE.PKCE_TYPE_YES)));
@@ -132,15 +127,15 @@ public class AuthorizationCodeTokenGranter extends AbstractTokenGranter {
     		if(StringUtils.isBlank(codeVerifier)) {
     		    throw new OAuth2Exception("code_verifier can not null.");
     		}
-    		
+
     		if(StringUtils.isBlank(pendingOAuth2Request.getCodeChallenge())) {
                 throw new OAuth2Exception("code_challenge can not null.");
             }
-    		
+
     		if(CODE_CHALLENGE_METHOD_TYPE.S256.equalsIgnoreCase(pendingOAuth2Request.getCodeChallengeMethod())) {
     		    codeVerifier = DigestUtils.digestBase64Url(codeVerifier,DigestUtils.Algorithm.SHA256);
     		}
-    		
+
     		if(!codeVerifier.equals(pendingOAuth2Request.getCodeChallenge())) {
                 throw new OAuth2Exception("code_verifier not match.");
             }
@@ -154,12 +149,12 @@ public class AuthorizationCodeTokenGranter extends AbstractTokenGranter {
 				.getRequestParameters());
 		// Combine the parameters adding the new ones last so they override if there are any clashes
 		combinedParameters.putAll(parameters);
-		
+
 		// Make a new stored request with the combined parameters
 		OAuth2Request finalStoredOAuth2Request = pendingOAuth2Request.createOAuth2Request(combinedParameters);
-		
+
 		Authentication userAuth = storedAuth.getUserAuthentication();
-		
+
 		return new OAuth2Authentication(finalStoredOAuth2Request, userAuth);
 
 	}

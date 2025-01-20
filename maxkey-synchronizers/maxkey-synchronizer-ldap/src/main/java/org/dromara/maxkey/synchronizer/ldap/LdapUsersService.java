@@ -21,6 +21,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
@@ -138,8 +140,10 @@ public class LdapUsersService extends AbstractSynchronizerService  implements IS
         _logger.info("deptNamePath  " + deptNamePath);
 		
        Organizations  deptOrg = orgsNamePathMap.get(deptNamePath);
-        userInfo.setDepartment(deptOrg.getOrgName());
-        userInfo.setDepartmentId(deptOrg.getId());
+//       if (!Objects.isNull(deptOrg)) {
+	   userInfo.setDepartment(deptOrg.getOrgName());
+       userInfo.setDepartmentId(deptOrg.getId());
+//       }
         
 		try {
 		    userInfo.setId(userInfo.generateId());
@@ -178,6 +182,7 @@ public class LdapUsersService extends AbstractSynchronizerService  implements IS
 			userInfo.setJobTitle(LdapUtils.getAttributeStringValue(InetOrgPerson.TITLE,attributeMap));
 			userInfo.setWorkOfficeName(LdapUtils.getAttributeStringValue(InetOrgPerson.PHYSICALDELIVERYOFFICENAME,attributeMap));
 			userInfo.setWorkEmail(LdapUtils.getAttributeStringValue(InetOrgPerson.MAIL,attributeMap));
+			userInfo.setEmail(LdapUtils.getAttributeStringValue(InetOrgPerson.MAIL,attributeMap));
 			userInfo.setWorkRegion(LdapUtils.getAttributeStringValue(InetOrgPerson.ST,attributeMap));
 			userInfo.setWorkLocality(LdapUtils.getAttributeStringValue(InetOrgPerson.L,attributeMap));
 			userInfo.setWorkStreetAddress(LdapUtils.getAttributeStringValue(InetOrgPerson.STREET,attributeMap));

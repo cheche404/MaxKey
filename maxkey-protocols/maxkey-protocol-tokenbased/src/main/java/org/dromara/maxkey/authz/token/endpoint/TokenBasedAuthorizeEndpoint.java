@@ -1,22 +1,22 @@
 /*
  * Copyright [2020] [MaxKey of copyright http://www.maxkey.top]
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 
 /**
- * 
+ *
  */
 package org.dromara.maxkey.authz.token.endpoint;
 
@@ -61,7 +61,7 @@ public class TokenBasedAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 
 	@Autowired
 	ApplicationConfig applicationConfig;
-	
+
 	@Operation(summary = "TokenBased认证接口", description = "传递参数应用ID",method="GET")
 	@RequestMapping("/authz/tokenbased/{id}")
 	public ModelAndView authorize(
@@ -70,16 +70,16 @@ public class TokenBasedAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 			@PathVariable("id") String id,
 			@CurrentUser UserInfo currentUser){
 		ModelAndView modelAndView=new ModelAndView();
-		
-		
+
+
 		AppsTokenBasedDetails tokenBasedDetails=null;
 		tokenBasedDetails=tokenBasedDetailsService.getAppDetails(id , true);
 		_logger.debug(""+tokenBasedDetails);
-		
+
 		Apps  application= getApp(id);
 		tokenBasedDetails.setAdapter(application.getAdapter());
 		tokenBasedDetails.setIsAdapter(application.getIsAdapter());
-		
+
 		AbstractAuthorizeAdapter adapter;
 		if(ConstsBoolean.isTrue(tokenBasedDetails.getIsAdapter())){
 			adapter =(AbstractAuthorizeAdapter)Instance.newInstance(tokenBasedDetails.getAdapter());
@@ -88,34 +88,34 @@ public class TokenBasedAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 		}
 		adapter.setPrincipal(AuthorizationUtils.getPrincipal());
 		adapter.setApp(tokenBasedDetails);
-		
+
 		adapter.generateInfo();
-		
+
 		adapter.encrypt(
-				null, 
-				tokenBasedDetails.getAlgorithmKey(), 
+				null,
+				tokenBasedDetails.getAlgorithmKey(),
 				tokenBasedDetails.getAlgorithm());
-		
+
 		if(tokenBasedDetails.getTokenType().equalsIgnoreCase("POST")) {
-			return adapter.authorize(modelAndView);
+			return adapter.authorize(modelAndView, response);
 		}else {
 			_logger.debug("Cookie Name : {}" ,tokenBasedDetails.getCookieName());
-			
+
 			Cookie cookie= new Cookie(tokenBasedDetails.getCookieName(),adapter.serialize());
-			
+
 			Integer maxAge = tokenBasedDetails.getExpires();
 			_logger.debug("Cookie Max Age : {} seconds.",maxAge);
 			cookie.setMaxAge(maxAge);
-			
+
 			cookie.setPath("/");
 			//
 			//cookie.setDomain("."+applicationConfig.getBaseDomainName());
 			//tomcat 8.5
 			cookie.setDomain(applicationConfig.getBaseDomainName());
-			
+
 			_logger.debug("Sub Domain Name : .{}",applicationConfig.getBaseDomainName());
 			response.addCookie(cookie);
-			
+
 			if(tokenBasedDetails.getRedirectUri().indexOf(applicationConfig.getBaseDomainName())>-1){
 				return WebContext.redirect(tokenBasedDetails.getRedirectUri());
 			}else{
@@ -123,7 +123,7 @@ public class TokenBasedAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 				return null;
 			}
 		}
-		
+
 	}
 
 }

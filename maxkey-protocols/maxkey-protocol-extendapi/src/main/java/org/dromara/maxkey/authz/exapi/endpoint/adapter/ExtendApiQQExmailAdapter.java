@@ -1,19 +1,19 @@
 /*
  * Copyright [2020] [MaxKey of copyright http://www.maxkey.top]
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 
 package org.dromara.maxkey.authz.exapi.endpoint.adapter;
 
@@ -21,6 +21,7 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.dromara.maxkey.authz.endpoint.adapter.AbstractAuthorizeAdapter;
 import org.dromara.maxkey.entity.Accounts;
 import org.dromara.maxkey.entity.ExtraAttrs;
@@ -46,35 +47,35 @@ public class ExtendApiQQExmailAdapter extends AbstractAuthorizeAdapter {
 	static String TOKEN_URI		= "https://api.exmail.qq.com/cgi-bin/gettoken?corpid=%s&corpsecret=%s";
 	//https://exmail.qq.com/qy_mng_logic/doc#10036
 	static String AUTHKEY_URI 	= "https://api.exmail.qq.com/cgi-bin/service/get_login_url?access_token=%s&userid=%s";
-	
+
 	static final   Cache<String, String> tokenCache = Caffeine.newBuilder()
                 										.expireAfterWrite(7200, TimeUnit.SECONDS)
                 										.build();
-	
+
 	Accounts account;
-	
+
 	@Override
 	public Object generateInfo() {
 		return null;
 	}
 
     @Override
-	public ModelAndView authorize(ModelAndView modelAndView) {
+	public ModelAndView authorize(ModelAndView modelAndView, HttpServletResponse httpServletResponse) {
 		HttpsTrusts.beforeConnection();
-		
+
 		Apps details=(Apps)app;
 		//extraAttrs from Applications
 		ExtraAttrs extraAttrs=null;
 		if(details.getIsExtendAttr()==1){
 			extraAttrs=new ExtraAttrs(details.getExtendAttr());
 		}
-		
+
 		_logger.debug("Extra Attrs {}",extraAttrs);
-		
+
 		String accessToken = getToken(details.getPrincipal(),details.getCredentials());
-		
+
 		ExMailLoginUrl exMailLoginUrl = getLoginUrl(accessToken,userInfo.getUsername());
-		
+
 		if(exMailLoginUrl.errcode == 0) {
 			modelAndView.addObject("redirect_uri", exMailLoginUrl.getLogin_url());
 		}else {
@@ -83,15 +84,15 @@ public class ExtendApiQQExmailAdapter extends AbstractAuthorizeAdapter {
 					exMailLoginUrl.getErrmsg(),
 					exMailMsgMapper.get(exMailLoginUrl.getErrcode())
 					);
-			//remove accessToken 
+			//remove accessToken
 			tokenCache.invalidate(details.getPrincipal());
 			modelAndView.addObject("errorCode", exMailLoginUrl.getErrcode());
 			modelAndView.addObject("errorMessage", exMailMsgMapper.get(exMailLoginUrl.getErrcode()));
 		}
-        
+
         return modelAndView;
 	}
-    
+
     public String getToken(String corpid , String corpsecret) {
     	String accessToken = tokenCache.getIfPresent(corpid);
     	if(accessToken ==  null) {
@@ -110,25 +111,25 @@ public class ExtendApiQQExmailAdapter extends AbstractAuthorizeAdapter {
     	}
     	return accessToken;
     }
-    
+
     public ExMailLoginUrl getLoginUrl(String accessToken,String userId) {
     	if(accessToken != null) {
 	    	_logger.debug("userId {}" , userId);
 			String authKeyBody = new HttpRequestAdapter().get(String.format(AUTHKEY_URI,accessToken,userId),null);
-			
+
 			ExMailLoginUrl exMailLoginUrl = JsonUtils.gsonStringToObject(authKeyBody, ExMailLoginUrl.class);
 			_logger.debug("LoginUrl {} " , exMailLoginUrl);
 			return exMailLoginUrl;
     	}
 		return new ExMailLoginUrl(-1,"access_token is null .");
     }
-    
+
 	class ExMailMsg{
-		
+
 		protected long expires_in;
-		    
+
 		protected String errmsg;
-		
+
 		protected Integer errcode;
 
 		public ExMailMsg() {
@@ -158,7 +159,7 @@ public class ExtendApiQQExmailAdapter extends AbstractAuthorizeAdapter {
 			this.errcode = errcode;
 		}
 	}
-	
+
 	class Token extends ExMailMsg implements Serializable {
 		private static final long serialVersionUID = 275756585220635542L;
 
@@ -166,7 +167,7 @@ public class ExtendApiQQExmailAdapter extends AbstractAuthorizeAdapter {
 	     * access_token
 	     */
 	    private String access_token;
-	    
+
 		public String getAccess_token() {
 			return access_token;
 		}
@@ -185,11 +186,11 @@ public class ExtendApiQQExmailAdapter extends AbstractAuthorizeAdapter {
 		}
 
 	}
-	
+
 	class ExMailLoginUrl extends ExMailMsg  implements Serializable {
 		private static final long serialVersionUID = 3033047757268214198L;
 		private String login_url;
-		 
+
 		public String getLogin_url() {
 			return login_url;
 		}
@@ -197,10 +198,10 @@ public class ExtendApiQQExmailAdapter extends AbstractAuthorizeAdapter {
 		public void setLogin_url(String login_url) {
 			this.login_url = login_url;
 		}
-		
+
 		public ExMailLoginUrl() {
 		}
-		
+
 		public ExMailLoginUrl(Integer errcode,String errmsg) {
 			super.errcode = errcode;
 			super.errmsg = errmsg;
@@ -217,7 +218,7 @@ public class ExtendApiQQExmailAdapter extends AbstractAuthorizeAdapter {
 	}
 
 	public static HashMap<Integer,String> exMailMsgMapper = new HashMap<Integer,String>();
-	
+
 	static {
 		exMailMsgMapper.put(-1, "系统繁忙");
 		exMailMsgMapper.put(0, "请求成功");

@@ -1,25 +1,26 @@
 /*
  * Copyright [2020] [MaxKey of copyright http://www.maxkey.top]
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 
 /**
- * 
+ *
  */
 package org.dromara.maxkey.authz.exapi.endpoint;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.dromara.maxkey.authn.annotation.CurrentUser;
 import org.dromara.maxkey.authn.web.AuthorizationUtils;
 import org.dromara.maxkey.authz.endpoint.AuthorizeBaseEndpoint;
@@ -53,13 +54,14 @@ public class ExtendApiAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 	@GetMapping("/authz/api/{id}")
 	public ModelAndView authorize(
 			HttpServletRequest request,
+		  HttpServletResponse httpServletResponse,
 			@PathVariable("id") String id,
 			@CurrentUser UserInfo currentUser){
-	    
+
 	    ModelAndView modelAndView = new ModelAndView("authorize/redirect_sso_submit");
 	    modelAndView.addObject("errorCode", 0);
 	    modelAndView.addObject("errorMessage", "");
-	    
+
 		Apps apps = getApp(id);
 		_logger.debug("{}" , apps);
 		if(ConstsBoolean.isTrue(apps.getIsAdapter())){
@@ -69,17 +71,17 @@ public class ExtendApiAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 			if(apps.getCredential().equalsIgnoreCase(Apps.CREDENTIALS.USER_DEFINED) && account == null) {
 				return initCredentialView(id,"/authorize/api/"+id);
 			}
-			
+
 			adapter.setPrincipal(AuthorizationUtils.getPrincipal());
 			adapter.setApp(apps);
 			adapter.setAccount(account);
-			
-			return adapter.authorize(modelAndView);
+
+			return adapter.authorize(modelAndView, httpServletResponse);
 		}else{
 			_logger.debug("redirect_uri {}",apps.getLoginUrl());
 	        modelAndView.addObject("redirect_uri", apps.getLoginUrl());
 	        return modelAndView;
 		}
-		
+
 	}
 }

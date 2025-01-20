@@ -1,11 +1,11 @@
 /*
  * Copyright 2002-2011 the original author or authors.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
  * the License. You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
  * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations under the License.
@@ -17,13 +17,13 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
+import java.security.SecureRandom;
+import java.util.*;
 
+import jakarta.xml.bind.DatatypeConverter;
 import org.dromara.maxkey.authn.annotation.CurrentUser;
 import org.dromara.maxkey.authn.web.AuthorizationUtils;
 import org.dromara.maxkey.authz.oauth2.common.OAuth2AccessToken;
@@ -54,6 +54,8 @@ import org.dromara.maxkey.web.WebConstants;
 import org.dromara.maxkey.web.WebContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -81,24 +83,33 @@ import jakarta.servlet.http.HttpServletResponse;
  * {@link TokenEndpoint Token Endpoint}, except in the implicit grant type (where they come from the Authorization
  * Endpoint via <code>response_type=token</code>.
  * </p>
- * 
+ *
  * <p>
  * This endpoint should be secured so that it is only accessible to fully authenticated users (as a minimum requirement)
  * since it represents a request from a valid user to act on his or her behalf.
  * </p>
- * 
+ *
  * @author Dave Syer
  * @author Vladimir Kryachko
  * @author Crystal.sea 2022-04-14
- * 
+ *
  */
 @Tag(name = "2-1-OAuth v2.0 API文档模块")
 @Controller
+@RefreshScope
 public class AuthorizationEndpoint extends AbstractEndpoint {
 	static final  Logger _logger = LoggerFactory.getLogger(AuthorizationEndpoint.class);
-	
+
+	private static final String OAUTH_STATE_COOKIE_NAME = "oauth_state";
+	// An highlighted block
+	@Value("${maxkey.sso.grafana.secretKey}")
+	private String grafanaSecretKey;
+
+	@Value("${maxkey.sso.grafana.ClientSecret}")
+	private String ssoClientSecret;
+
 	private static final String OAUTH_V20_AUTHORIZATION_URL = "" + OAuth2Constants.ENDPOINT.ENDPOINT_AUTHORIZE + "?client_id=%s&response_type=code&redirect_uri=%s&approval_prompt=auto";
-	
+
 	private RedirectResolver redirectResolver = new DefaultRedirectResolver();
 
 	private UserApprovalHandler userApprovalHandler = new DefaultUserApprovalHandler();
@@ -108,7 +119,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 	private String userApprovalPage = "forward:" + OAuth2Constants.ENDPOINT.ENDPOINT_APPROVAL_CONFIRM;
 
 	private String errorPage = "forward:" + OAuth2Constants.ENDPOINT.ENDPOINT_ERROR;
-	
+
 	private Object implicitLock = new Object();
 
 
@@ -126,29 +137,29 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
         _logger.debug("clientDetails {}",clientDetails);
         String authorizationUrl = "";
         try {
-            authorizationUrl = String.format(OAUTH_V20_AUTHORIZATION_URL, 
-                            clientDetails.getClientId(), 
+            authorizationUrl = String.format(OAUTH_V20_AUTHORIZATION_URL,
+                            clientDetails.getClientId(),
                             URLEncoder.encode(clientDetails.getRegisteredRedirectUri().toArray()[0].toString(),"UTF-8"));
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
+
         _logger.debug("authorizationUrl {}" , authorizationUrl);
-        
+
         return WebContext.redirect(authorizationUrl);
     }
-	   
+
 	@Operation(summary = "OAuth 2.0 认证接口", description = "传递参数client_id,response_type,redirect_uri等",method="GET")
 	@GetMapping(value = {
 								OAuth2Constants.ENDPOINT.ENDPOINT_AUTHORIZE,
 								OAuth2Constants.ENDPOINT.ENDPOINT_TENCENT_IOA_AUTHORIZE
 							})
 	public ModelAndView authorize(
-	            Map<String, Object> model, 
+	            Map<String, Object> model,
 	            @RequestParam Map<String, String> parameters,
 	            @CurrentUser UserInfo currentUser,
 	            SessionStatus sessionStatus) {
-	    
+
 		 Principal principal=(Principal)AuthorizationUtils.getAuthentication();
 		// Pull out the authorization request first, using the OAuth2RequestFactory. All further logic should
 		// query off of the authorization request instead of referring back to the parameters map. The contents of the
@@ -183,7 +194,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 			if (!StringUtils.hasText(resolvedRedirect)) {
 				logger.info("Client redirectUri "+resolvedRedirect);
 				logger.info("Parameter redirectUri "+redirectUriParameter);
-				
+
 				throw new RedirectMismatchException(
 						"A redirectUri must be either supplied or preconfigured in the ClientDetails");
 			}
@@ -214,15 +225,15 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 			Apps  app = (Apps)WebContext.getAttribute(WebConstants.AUTHORIZE_SIGN_ON_APP);
 			//session中为空或者id不一致重新加载
             if (app == null || !app.getId().equalsIgnoreCase(authorizationRequest.getClientId())) {
-                app = appsService.get(authorizationRequest.getClientId()); 
+                app = appsService.get(authorizationRequest.getClientId());
                 WebContext.setAttribute(WebConstants.AUTHORIZE_SIGN_ON_APP, app);
             }
-            
+
 			// Place auth request into the model so that it is stored in the session
 			// for approveOrDeny to use. That way we make sure that auth request comes from the session,
 			// so any auth request parameters passed to approveOrDeny will be ignored and retrieved from the session.
             momentaryService.put(currentUser.getSessionId(), "authorizationRequest", authorizationRequest);
-            
+
 			return getUserApprovalPageResponse(model, authorizationRequest, (Authentication) principal);
 
 		}catch(UnsupportedEncodingException e) {
@@ -266,7 +277,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 			return new Message<>(Message.FAIL,
 					getUnsuccessfulRedirect(
 				            authorizationRequest,
-				            new UserDeniedAuthorizationException("User denied access"), 
+				            new UserDeniedAuthorizationException("User denied access"),
 				            responseTypes.contains(OAuth2Constants.PARAMETER.TOKEN)
 				        )
 					);
@@ -314,7 +325,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 		}
 		return accessToken;
 	}
-	
+
 	// Authorization Code Response
 	private String getAuthorizationCodeResponse(AuthorizationRequest authorizationRequest, Authentication authUser) {
 		try {
@@ -322,7 +333,26 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 					authorizationRequest,
 					generateCode(authorizationRequest, authUser)
 			);
-			_logger.debug("successfulRedirect {}" , successfulRedirect);
+
+			//往grafana跳转登录，写入oauth_state参数
+			if(successfulRedirect.contains("3000")){
+				String state = this.generateStateString();
+				String hashStatecode = this.hashStatecode(state,grafanaSecretKey,ssoClientSecret);
+				successfulRedirect = successfulRedirect + "&state="+state;
+				HttpServletRequest request = WebContext.getRequest();
+				String serverName = request.getServerName();
+                WebContext.setCookie(WebContext.getResponse(),serverName,OAUTH_STATE_COOKIE_NAME,hashStatecode,10);
+			} else if(successfulRedirect.contains("9123")){
+				String state = this.generateStateString();
+				String hashStatecode = this.hashStatecode(state,grafanaSecretKey,ssoClientSecret);
+				successfulRedirect = successfulRedirect + "&oidc_states="+state;
+				HttpServletRequest request = WebContext.getRequest();
+				String serverName = request.getServerName();
+				WebContext.setCookie(WebContext.getResponse(),serverName,OAUTH_STATE_COOKIE_NAME,hashStatecode,10);
+			}
+
+
+			_logger.debug("successfulRedirect " + successfulRedirect);
 			return successfulRedirect;
 		}
 		catch (OAuth2Exception e) {
@@ -379,7 +409,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 		// Do not include the refresh token (even if there is one)
 		return template.expand(vars).toString();
 	}
-	
+
 	public String templateUrlVar(String parameterName) {
 		return parameterName + "={" + parameterName + "}";
 	}
@@ -421,7 +451,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 		if (state != null) {
 			query.put(OAuth2Constants.PARAMETER.STATE, state);
 		}
-		
+
 		//this is for cas
 		String service = authorizationRequest.getRequestParameters().get("service");
 		if (service != null) {
@@ -520,7 +550,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 		return builder.build().toUriString();
 
 	}
-	
+
 	public void setUserApprovalPage(String userApprovalPage) {
 		this.userApprovalPage = userApprovalPage;
 	}
@@ -539,6 +569,62 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 
 	public void setOAuth2RequestValidator(OAuth2RequestValidator oauth2RequestValidator) {
 		this.oauth2RequestValidator = oauth2RequestValidator;
+	}
+
+	private String getAuthorizationCodeResponse(AuthorizationRequest authorizationRequest, Authentication authUser,String returnUrl) {
+		try {
+			String  successfulRedirect = getSuccessfulRedirect(
+				authorizationRequest,
+				generateCode(authorizationRequest, authUser)
+			);
+			logger.info("getAuthorizationCodeResponse returnUrl:"+returnUrl);
+
+			//往grafana跳转登录，写入oauth_state参数
+			if(successfulRedirect.contains("3000")){
+				String state = this.generateStateString();
+				String hashStatecode = this.hashStatecode(state,grafanaSecretKey,ssoClientSecret);
+				successfulRedirect = successfulRedirect + "&state="+state;
+				HttpServletRequest request = WebContext.getRequest();
+				String serverName = request.getServerName();
+				WebContext.setCookie(WebContext.getResponse(),serverName,OAUTH_STATE_COOKIE_NAME,hashStatecode,10);
+			}
+			_logger.debug("successfulRedirect " + successfulRedirect);
+			return successfulRedirect;
+		}
+		catch (OAuth2Exception e) {
+			return getUnsuccessfulRedirect(authorizationRequest, e, false);
+		}
+	}
+
+	/**
+	 * @description: 对状态码做Hash运算
+	 * @date: 2024/4/19 11:02
+	 * @param state 状态码
+	 * @return
+	 */
+	private  String hashStatecode(String state,String grafanaSecretKey,String ssoClientSecret)  {
+		String combinedString = state +  grafanaSecretKey + ssoClientSecret;
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			byte[] hashBytes = digest.digest(combinedString.getBytes());
+			return DatatypeConverter.printHexBinary(hashBytes).toLowerCase();
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		}
+
+		return null;
+	}
+
+	/**
+	 * @description: 生成grafana验证的状态码
+	 * @date: 2024/4/19 11:03
+	 * @return
+	 */
+	private  String generateStateString() {
+		SecureRandom secureRandom = new SecureRandom();
+		byte[] randomBytes = new byte[32];
+		secureRandom.nextBytes(randomBytes);
+		return  Base64.getUrlEncoder().encodeToString(randomBytes);
 	}
 
 }

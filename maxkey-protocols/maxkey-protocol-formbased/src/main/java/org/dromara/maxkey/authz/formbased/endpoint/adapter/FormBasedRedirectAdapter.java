@@ -1,24 +1,25 @@
 /*
  * Copyright [2020] [MaxKey of copyright http://www.maxkey.top]
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 
 package org.dromara.maxkey.authz.formbased.endpoint.adapter;
 
 import java.time.Instant;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.dromara.maxkey.authz.endpoint.adapter.AbstractAuthorizeAdapter;
 import org.dromara.maxkey.constants.ConstsBoolean;
 import org.dromara.maxkey.crypto.DigestUtils;
@@ -34,10 +35,10 @@ public class FormBasedRedirectAdapter extends AbstractAuthorizeAdapter {
 	}
 
 	@Override
-	public ModelAndView authorize(ModelAndView modelAndView) {
+	public ModelAndView authorize(ModelAndView modelAndView, HttpServletResponse httpServletResponse) {
 		modelAndView.setViewName("authorize/formbased_redirect_submint");
 		AppsFormBasedDetails details=(AppsFormBasedDetails)app;
-		
+
 		String password = account.getRelatedPassword();
         if(null==details.getPasswordAlgorithm()||details.getPasswordAlgorithm().equals("")){
         }else if(details.getPasswordAlgorithm().indexOf("HEX")>-1){
@@ -45,7 +46,7 @@ public class FormBasedRedirectAdapter extends AbstractAuthorizeAdapter {
         }else{
             password = DigestUtils.digestBase64(account.getRelatedPassword(),details.getPasswordAlgorithm());
         }
-        
+
 		modelAndView.addObject("id", details.getId());
 		modelAndView.addObject("action", details.getRedirectUri());
 		modelAndView.addObject("redirectUri", details.getRedirectUri());
@@ -55,7 +56,7 @@ public class FormBasedRedirectAdapter extends AbstractAuthorizeAdapter {
 		modelAndView.addObject("username", account.getRelatedUsername());
         modelAndView.addObject("password",  password);
         modelAndView.addObject("timestamp",  ""+Instant.now().getEpochSecond());
-		
+
 		if(WebContext.getAttribute("formbased_redirect_submint")==null){
 			modelAndView.setViewName("authorize/formbased_redirect_submint");
 			WebContext.setAttribute("formbased_redirect_submint", "formbased_redirect_submint");
@@ -66,15 +67,15 @@ public class FormBasedRedirectAdapter extends AbstractAuthorizeAdapter {
 			}
 			WebContext.removeAttribute("formbased_redirect_submint");
 		}
-		
-		
+
+
 		if(ConstsBoolean.isTrue(details.getIsExtendAttr())){
 			modelAndView.addObject("extendAttr", details.getExtendAttr());
 			modelAndView.addObject("isExtendAttr", true);
 		}else{
 			modelAndView.addObject("isExtendAttr", false);
 		}
-		
+
 		return modelAndView;
 	}
 

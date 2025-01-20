@@ -2,13 +2,13 @@ package org.dromara.maxkey.crypto.jose.keystore;
 /*******************************************************************************
  * Copyright 2014 The MITRE Corporation
  *   and the MIT Kerberos and Internet Trust Consortium
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,6 +16,9 @@ package org.dromara.maxkey.crypto.jose.keystore;
  * limitations under the License.
  ******************************************************************************/
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
 import com.google.common.io.CharStreams;
 import com.nimbusds.jose.JOSEException;
@@ -27,7 +30,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.security.PublicKey;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
 import org.dromara.maxkey.crypto.RSAUtils;
@@ -55,7 +61,7 @@ public class JWKSetKeyStore {
         this.jwkSet = jwkSet;
         initializeJwkSet();
     }
-    
+
     public JWKSetKeyStore(String  jwkSetJsonString) {
         try {
 			this.jwkSet = JWKSet.parse(jwkSetJsonString);
@@ -64,7 +70,7 @@ public class JWKSetKeyStore {
 		}
         initializeJwkSet();
     }
-    
+
 
     private void initializeJwkSet() {
 
@@ -125,7 +131,7 @@ public class JWKSetKeyStore {
      */
     public void setLocation(Resource location) {
         this.location = location;
-        
+
         initializeJwkSet();
     }
 
@@ -139,14 +145,14 @@ public class JWKSetKeyStore {
         }
         return jwkSet.getKeys();
     }
-    
+
     public String toString(String mediaType){
     	StringBuffer metaDataString = new StringBuffer("");
     	//RSA Only
 		if(jwkSet.getKeys().get(0).getKeyType().getValue().equalsIgnoreCase("RSA")) {
-			
+
 			if(StringUtils.isNotBlank(mediaType) && mediaType.equalsIgnoreCase("XML")) {
-			
+
 				metaDataString.append("<RSAKeyValue>").append("\n");
 				for(JWK jwk : jwkSet.getKeys()) {
 					RSAKey  rsaKey  = jwk.toRSAKey();
@@ -160,19 +166,19 @@ public class JWKSetKeyStore {
 						metaDataString.append("<Algorithm>");
 						metaDataString.append(rsaKey.getAlgorithm());
 						metaDataString.append("</Algorithm>").append("\n");
-						
+
 						metaDataString.append("<KeyID>");
 						metaDataString.append(rsaKey.getKeyID());
 						metaDataString.append("</KeyID>").append("\n");
-						
+
 						metaDataString.append("<KeyType>");
 						metaDataString.append(rsaKey.getKeyType());
 						metaDataString.append("</KeyType>").append("\n");
-						
+
 						metaDataString.append("<Format>");
 						metaDataString.append(publicKey.getFormat());
 						metaDataString.append("</Format>");
-						
+
 						metaDataString.append("<PublicExponent>");
 						metaDataString.append(rsaKey.getPublicExponent());
 						metaDataString.append("</PublicExponent>").append("\n");
@@ -181,7 +187,7 @@ public class JWKSetKeyStore {
 					}
 				}
 				metaDataString.append("</RSAKeyValue>");
-			
+
 			}else {
 				//RSA Only
 				metaDataString.append(PrettyFactory.getJsonPretty().format(
@@ -192,4 +198,89 @@ public class JWKSetKeyStore {
 		}
 		return metaDataString.toString();
 	}
+
+  public Map toMap(String mediaType){
+    StringBuffer metaDataString = new StringBuffer("");
+    //RSA Only
+    if(jwkSet.getKeys().get(0).getKeyType().getValue().equalsIgnoreCase("RSA")) {
+
+      if(StringUtils.isNotBlank(mediaType) && mediaType.equalsIgnoreCase("XML")) {
+
+        metaDataString.append("<RSAKeyValue>").append("\n");
+        for(JWK jwk : jwkSet.getKeys()) {
+          RSAKey  rsaKey  = jwk.toRSAKey();
+          PublicKey publicKey;
+          try {
+            publicKey = rsaKey.toPublicKey();
+            metaDataString.append("<Modulus>").append("\n");
+            metaDataString.append(RSAUtils.getPublicKeyPEM(publicKey.getEncoded()));
+            metaDataString.append("</Modulus>").append("\n");
+            //keyID
+            metaDataString.append("<Algorithm>");
+            metaDataString.append(rsaKey.getAlgorithm());
+            metaDataString.append("</Algorithm>").append("\n");
+
+            metaDataString.append("<KeyID>");
+            metaDataString.append(rsaKey.getKeyID());
+            metaDataString.append("</KeyID>").append("\n");
+
+            metaDataString.append("<KeyType>");
+            metaDataString.append(rsaKey.getKeyType());
+            metaDataString.append("</KeyType>").append("\n");
+
+            metaDataString.append("<Format>");
+            metaDataString.append(publicKey.getFormat());
+            metaDataString.append("</Format>");
+
+            metaDataString.append("<PublicExponent>");
+            metaDataString.append(rsaKey.getPublicExponent());
+            metaDataString.append("</PublicExponent>").append("\n");
+          } catch (JOSEException e) {
+            _logger.error("JOSEException ", mediaType);
+          }
+        }
+        metaDataString.append("</RSAKeyValue>");
+
+      }else {
+        //RSA Only
+        metaDataString.append(PrettyFactory.getJsonPretty().format(
+          jwkSet.toPublicJWKSet().toString()));
+      }
+    }else {
+      metaDataString.append("RSA Only");
+    }
+
+    Map<String, Object> resultMap = new HashMap<>();
+
+    try {
+      // 使用 fastjson 将 JSON 字符串转换为 JSONObject
+      JSONObject jsonObject = JSONObject.parseObject(metaDataString.toString());
+
+      // 将 JSONObject 转换为 Map
+      resultMap = jsonObject;
+
+      // 获取 "keys" 数组并将其转换为 List<Map<String, Object>>
+      JSONArray keysArray = jsonObject.getJSONArray("keys");
+      List<Map<String, Object>> keysList = new ArrayList<>();
+      for (int i = 0; i < keysArray.size(); i++) {
+        JSONObject keyObject = keysArray.getJSONObject(i);
+        // 将 keyObject 转换为 Map
+        Map<String, Object> keyMap = keyObject;
+        keysList.add(keyMap);
+      }
+
+      // 将 keysList 放入 resultMap 中
+      resultMap.put("keys", keysList);
+
+      // 输出整个 Map
+      System.out.println(resultMap);
+
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    return resultMap;
+  }
+
+
 }

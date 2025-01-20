@@ -1,19 +1,19 @@
 /*
  * Copyright [2020] [MaxKey of copyright http://www.maxkey.top]
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 
 package org.dromara.maxkey.authz.jwt.endpoint.adapter;
 
@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.dromara.maxkey.authz.endpoint.adapter.AbstractAuthorizeAdapter;
 import org.dromara.maxkey.crypto.jwt.encryption.service.impl.DefaultJwtEncryptionAndDecryptionService;
 import org.dromara.maxkey.crypto.jwt.signer.service.impl.DefaultJwtSigningAndValidationService;
@@ -47,13 +48,13 @@ public class JwtAdapter extends AbstractAuthorizeAdapter {
 	static final  Logger _logger = LoggerFactory.getLogger(JwtAdapter.class);
 
 	AppsJwtDetails jwtDetails;
-	
+
 	JWT jwtToken;
-	
+
 	JWEObject jweObject;
-	
+
 	JWTClaimsSet jwtClaims;
-	
+
 	public JwtAdapter() {
 
 	}
@@ -69,7 +70,7 @@ public class JwtAdapter extends AbstractAuthorizeAdapter {
 		_logger.debug("expiration Time : {}" , expirationTime);
 		String subject = getValueByUserAttr(userInfo,jwtDetails.getSubject());
 		_logger.trace("jwt subject : {}" , subject);
-		
+
 		jwtClaims =new  JWTClaimsSet.Builder()
 				.issuer(jwtDetails.getIssuer())
 				.subject(subject)
@@ -86,11 +87,11 @@ public class JwtAdapter extends AbstractAuthorizeAdapter {
 				.claim("kid", jwtDetails.getId()+ "_sig")
 				.claim("institution", userInfo.getInstId())
 				.build();
-		
+
 		_logger.trace("jwt Claims : {}" , jwtClaims);
-		
+
 		jwtToken = new PlainJWT(jwtClaims);
-			
+
 		return jwtToken;
 	}
 
@@ -98,15 +99,15 @@ public class JwtAdapter extends AbstractAuthorizeAdapter {
 	public Object sign(Object data,String signatureKey,String signature) {
 		if(!jwtDetails.getSignature().equalsIgnoreCase("none")) {
 			try {
-				DefaultJwtSigningAndValidationService jwtSignerService = 
+				DefaultJwtSigningAndValidationService jwtSignerService =
 							new DefaultJwtSigningAndValidationService(
 									jwtDetails.getSignatureKey(),
 									jwtDetails.getId() + "_sig",
 									jwtDetails.getSignature()
 								);
-				
+
 				jwtToken = new SignedJWT(
-								new JWSHeader(jwtSignerService.getDefaultSigningAlgorithm()), 
+								new JWSHeader(jwtSignerService.getDefaultSigningAlgorithm()),
 								jwtClaims
 							);
 				// sign it with the server's key
@@ -127,7 +128,7 @@ public class JwtAdapter extends AbstractAuthorizeAdapter {
 	public Object encrypt(Object data, String algorithmKey, String algorithm) {
 		if(!jwtDetails.getAlgorithm().equalsIgnoreCase("none")) {
 			try {
-				DefaultJwtEncryptionAndDecryptionService jwtEncryptionService = 
+				DefaultJwtEncryptionAndDecryptionService jwtEncryptionService =
 							new DefaultJwtEncryptionAndDecryptionService(
 									jwtDetails.getAlgorithmKey(),
 									jwtDetails.getId()  + "_enc",
@@ -143,7 +144,7 @@ public class JwtAdapter extends AbstractAuthorizeAdapter {
 				// Example Request JWT encrypted with RSA-OAEP-256 and 128-bit AES/GCM
 				//JWEHeader jweHeader = new JWEHeader(JWEAlgorithm.RSA1_5, EncryptionMethod.A128GCM);
 				JWEHeader jweHeader = new JWEHeader(
-						jwtEncryptionService.getDefaultAlgorithm(jwtDetails.getAlgorithm()), 
+						jwtEncryptionService.getDefaultAlgorithm(jwtDetails.getAlgorithm()),
 						jwtEncryptionService.parseEncryptionMethod(jwtDetails.getEncryptionMethod())
 						);
 				jweObject = new JWEObject(
@@ -151,26 +152,26 @@ public class JwtAdapter extends AbstractAuthorizeAdapter {
 					        .contentType("JWT") // required to indicate nested JWT
 					        .build(),
 					        payload);
-				
+
 				jwtEncryptionService.encryptJwt(jweObject);
-				
+
 			} catch (NoSuchAlgorithmException | InvalidKeySpecException | JOSEException e) {
 				_logger.error("Encrypt Exception", e);
 			}
 		}
 		return data;
 	}
-	
+
 	@Override
-	public ModelAndView authorize(ModelAndView modelAndView) {
+	public ModelAndView authorize(ModelAndView modelAndView, HttpServletResponse httpServletResponse) {
 		modelAndView.setViewName("authorize/jwt_sso_submint");
 		modelAndView.addObject("action", jwtDetails.getRedirectUri());
-		
+
 		modelAndView.addObject("token",serialize());
 		modelAndView.addObject("jwtName",jwtDetails.getJwtName());
-		
+
 		modelAndView.addObject("tokenType",jwtDetails.getTokenType().toLowerCase());
-		
+
 		return modelAndView;
 	}
 

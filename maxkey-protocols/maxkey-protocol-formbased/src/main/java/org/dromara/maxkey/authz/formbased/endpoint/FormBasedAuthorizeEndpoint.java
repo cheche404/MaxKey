@@ -1,25 +1,30 @@
 /*
  * Copyright [2020] [MaxKey of copyright http://www.maxkey.top]
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 
 /**
- * 
+ *
  */
 package org.dromara.maxkey.authz.formbased.endpoint;
 
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
+
+import org.apache.commons.lang3.StringUtils;
 import org.dromara.maxkey.authn.annotation.CurrentUser;
 import org.dromara.maxkey.authn.web.AuthorizationUtils;
 import org.dromara.maxkey.authz.endpoint.AuthorizeBaseEndpoint;
@@ -52,36 +57,37 @@ import jakarta.servlet.http.HttpServletRequest;
 @Controller
 public class FormBasedAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 	static final  Logger _logger = LoggerFactory.getLogger(FormBasedAuthorizeEndpoint.class);
-	
+
 	@Autowired
 	AppsFormBasedDetailsService formBasedDetailsService;
-	
+
 	FormBasedDefaultAdapter defaultFormBasedAdapter=new FormBasedDefaultAdapter();
-	
+
 	@Operation(summary = "FormBased认证地址接口", description = "参数应用ID",method="GET")
 	@RequestMapping("/authz/formbased/{id}")
 	public ModelAndView authorize(
 			HttpServletRequest request,
+			HttpServletResponse httpServletResponse,
 			@PathVariable("id") String id,
 			@CurrentUser UserInfo currentUser){
-		
+
 		AppsFormBasedDetails formBasedDetails = formBasedDetailsService.getAppDetails(id , true);
 		_logger.debug("formBasedDetails {}",formBasedDetails);
 		Apps  application = getApp(id);
 		formBasedDetails.setAdapter(application.getAdapter());
 		formBasedDetails.setIsAdapter(application.getIsAdapter());
 		ModelAndView modelAndView=null;
-		
+
 		Accounts account = getAccounts(formBasedDetails,currentUser);
 		_logger.debug("Accounts {}",account);
-		
+
 		if(account	==	null){
 			return initCredentialView(id,"/authz/formbased/"+id);
 		}else{
 			modelAndView=new ModelAndView();
-			
+
 			AbstractAuthorizeAdapter adapter;
-			
+
 			if(ConstsBoolean.isTrue(formBasedDetails.getIsAdapter())){
 				Object formBasedAdapter = Instance.newInstance(formBasedDetails.getAdapter());
 				adapter =(AbstractAuthorizeAdapter)formBasedAdapter;
@@ -92,12 +98,13 @@ public class FormBasedAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 			adapter.setPrincipal(AuthorizationUtils.getPrincipal());
 			adapter.setApp(formBasedDetails);
 			adapter.setAccount(account);
-			
-			modelAndView = adapter.authorize(modelAndView);
+
+			modelAndView = adapter.authorize(modelAndView, httpServletResponse);
 		}
-		
+
 		_logger.debug("FormBased View Name {}" , modelAndView.getViewName());
 		
 		return modelAndView;
 	}
+
 }

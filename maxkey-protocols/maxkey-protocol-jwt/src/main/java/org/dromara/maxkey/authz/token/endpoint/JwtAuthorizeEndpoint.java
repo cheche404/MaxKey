@@ -1,26 +1,28 @@
 /*
  * Copyright [2022] [MaxKey of copyright http://www.maxkey.top]
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 
 /**
- * 
+ *
  */
 package org.dromara.maxkey.authz.token.endpoint;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -62,10 +64,10 @@ import jakarta.servlet.http.HttpServletResponse;
 public class JwtAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 
 	static final  Logger _logger = LoggerFactory.getLogger(JwtAuthorizeEndpoint.class);
-	
+
 	@Autowired
 	AppsJwtDetailsService jwtDetailsService;
-	
+
 	@Operation(summary = "JWT应用ID认证接口", description = "应用ID")
 	@GetMapping("/authz/jwt/{id}")
 	public ModelAndView authorize(
@@ -79,7 +81,7 @@ public class JwtAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 		_logger.debug("jwtDetails {}",jwtDetails);
 		jwtDetails.setAdapter(application.getAdapter());
 		jwtDetails.setIsAdapter(application.getIsAdapter());
-		
+
 		AbstractAuthorizeAdapter adapter;
 		if(ConstsBoolean.isTrue(jwtDetails.getIsAdapter())){
 			Object jwtAdapter = Instance.newInstance(jwtDetails.getAdapter());
@@ -92,24 +94,24 @@ public class JwtAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 		}else{
 			adapter =new JwtAdapter(jwtDetails);
 		}
-		
+
 		adapter.setPrincipal(AuthorizationUtils.getPrincipal());
-		
+
 		adapter.generateInfo();
 		//sign
 		adapter.sign(null,jwtDetails.getSignatureKey(), jwtDetails.getSignature());
 		//encrypt
 		adapter.encrypt(null, jwtDetails.getAlgorithmKey(), jwtDetails.getAlgorithm());
-		
-		return adapter.authorize(modelAndView);
+
+		return adapter.authorize(modelAndView, response);
 	}
 
 	@Operation(summary = "JWT JWK元数据接口", description = "参数mxk_metadata_APPID")
 	@GetMapping(value = "/metadata/jwt/" + WebConstants.MXK_METADATA_PREFIX + "{appid}.{mediaType}")
 	@ResponseBody
-	public String  metadata(HttpServletRequest request,
-			HttpServletResponse response, 
-			@PathVariable("appid") String appId, 
+	public Map  metadata(HttpServletRequest request,
+			HttpServletResponse response,
+			@PathVariable("appid") String appId,
 			@PathVariable("mediaType") String mediaType) {
 		AppsJwtDetails jwtDetails = jwtDetailsService.getAppDetails(appId , true);
 		if(jwtDetails != null) {
@@ -124,17 +126,19 @@ public class JwtAuthorizeEndpoint  extends AuthorizeBaseEndpoint{
 					jwkSetString = jwkSetString + "," +jwtDetails.getAlgorithmKey();
 				}
 			}
-			 
+
 			JWKSetKeyStore jwkSetKeyStore = new JWKSetKeyStore("{\"keys\": [" + jwkSetString + "]}");
-			if(StringUtils.isNotBlank(mediaType) 
+			if(StringUtils.isNotBlank(mediaType)
 					&& mediaType.equalsIgnoreCase("xml")) {
 				response.setContentType(ContentType.APPLICATION_XML_UTF8);
 			}else {
 				response.setContentType(ContentType.APPLICATION_JSON_UTF8);
 			}
-			return jwkSetKeyStore.toString(mediaType);
-			
+			return jwkSetKeyStore.toMap(mediaType);
+
 		}
-		return appId + " not exist. \n" + WebContext.version();
+		Map<String, Object> result = new HashMap<>();
+		result.put("message", appId + " not exist. \n" + WebContext.version());
+		return result;
 	}
 }
