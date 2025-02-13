@@ -343,14 +343,10 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 				String serverName = request.getServerName();
                 WebContext.setCookie(WebContext.getResponse(),serverName,OAUTH_STATE_COOKIE_NAME,hashStatecode,10);
 			} else if(successfulRedirect.contains("9123")){
-				String state = this.generateStateString();
-				String hashStatecode = this.hashStatecode(state,grafanaSecretKey,ssoClientSecret);
-				successfulRedirect = successfulRedirect + "&oidc_states="+state;
-				HttpServletRequest request = WebContext.getRequest();
-				String serverName = request.getServerName();
-				WebContext.setCookie(WebContext.getResponse(),serverName,OAUTH_STATE_COOKIE_NAME,hashStatecode,10);
+				if (successfulRedirect.contains("http://")) {
+					successfulRedirect = successfulRedirect.replace("http://", "https://");
+				}
 			}
-
 
 			_logger.debug("successfulRedirect " + successfulRedirect);
 			return successfulRedirect;
