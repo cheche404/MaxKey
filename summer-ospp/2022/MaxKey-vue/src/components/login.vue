@@ -18,12 +18,12 @@
               <label for="username" class="label">
                 <Icon iconClass="user" class="erweima"></Icon>
               </label>
-              <input 
+              <input
               v-model="form.username"
-              type="text" 
-              name="username" 
-              id="username" 
-              class="form-control" 
+              type="text"
+              name="username"
+              id="username"
+              class="form-control"
               placeholder="用户名"
               />
             </div>
@@ -31,24 +31,24 @@
               <label for="inputPassword" class="label">
                   <Icon iconClass="key"></Icon>
               </label>
-              <input 
+              <input
               v-model="form.password"
               :type= "passwordType"
-              name="password" 
-              id="inputPassword" 
-              class="form-control" 
+              name="password"
+              id="inputPassword"
+              class="form-control"
               placeholder="密码" required/>
               <i @click="show" v-show="visible">
-                  <Icon 
+                  <Icon
                 iconClass="eyes-open"
                 class="eyes-img"
                 />
-              </i>             
+              </i>
               <i @click="show" v-show="!visible">
-                  <Icon 
-                      iconClass="eyes-close"      
+                  <Icon
+                      iconClass="eyes-close"
                       class="eyes-img"/>
-              </i>            
+              </i>
             </div>
             <div class="check">
               <label for="check" class="label">
@@ -58,34 +58,34 @@
               type="text"
               id="check"
               placeholder="验证码"
-              class="form-control" 
-              v-model="form.captcha"        
-              />           
+              class="form-control"
+              v-model="form.captcha"
+              />
               <div class="code">
                 <img :src="imageCaptcha" @click="getImageCaptcha" alt=""/>
               </div>
-            </div>          
+            </div>
             <div class="remember">
               <input type="checkbox" id="remember" v-model="rememberMe" />
               <label for="remember">记住登录</label>
               <router-link to="/passport/forgot">忘记密码</router-link>
-            </div>              
-            <button type="button" class="btn"  @click="login" >登录</button>
-            <div class="otherLogin">
-              <span> 其他登录方式 </span>
-                <template
-                  v-for="prod in providers"
-                  >
-                  <img :src= 'prod.icon' alt="" width="32px" @click="socialauth(prod.provider)">                
-                  </template>                                 
             </div>
+            <button type="button" class="btn"  @click="login" >登录</button>
+<!--            <div class="otherLogin">-->
+<!--              <span> 其他登录方式 </span>-->
+<!--                <template-->
+<!--                  v-for="prod in providers"-->
+<!--                  >-->
+<!--                  <img :src= 'prod.icon' alt="" width="32px" @click="socialauth(prod.provider)">                -->
+<!--                  </template>                                 -->
+<!--            </div>-->
         </template>
         <div v-if="isqrCode">
           <div id="div_qrcodelogin"></div>
-        </div>          
-      </form>     
+        </div>
+      </form>
       <Footer/>
-    </div>   
+    </div>
 </template>
 
 <script lang="ts" setup>
@@ -102,7 +102,7 @@ interface Form {
     username: string,
     password: string,
     captcha: string ,
-     
+
 }
 
 let state=""
@@ -113,7 +113,7 @@ const router = useRouter()
 const form = reactive<Form>({
         username:"",
         password:"",
-        captcha:"", 
+        captcha:"",
     })
 const rememberMe = ref<boolean>(false)
 const isqrCode  =ref<boolean>(false)
@@ -154,7 +154,7 @@ const congressLogin=(congress:string)=>{
         //设置用户token信息
         api.auth(res.data)
         api.navigate({})
-      }     
+      }
     })
     .catch((err:AxiosError)=>{
       console.log(err.message)
@@ -171,14 +171,14 @@ onBeforeMount(()=>{
   }
   //init socails,state
   api.clear()
-  
+
   api.get({remember_me:localStorage.getItem(CONSTS.REMEMBER)})
     .then((res:AxiosResponse)=>{
       res=res.data
       if(res.code != 0){
         console.log(res.msg)
-      }else{        
-        if(res.data.state){          
+      }else{
+        if(res.data.state){
           providers.value=res.data.socials.providers
           qrScan = res.data.socials.qrScan
           state =res.data.state
@@ -203,7 +203,7 @@ onBeforeMount(()=>{
 const show=()=>{
     visible.value=!(visible.value);
     if(!visible.value)passwordType.value="password"
-    else passwordType.value="text"   
+    else passwordType.value="text"
 }
 
 const getImageCaptcha=():void=>{
@@ -215,7 +215,7 @@ const getImageCaptcha=():void=>{
   .catch(err=>Promise.reject(err))
 }
 
-const login=()=>{   
+const login=()=>{
    if(form.username===''|| form.password===''|| form.captcha===''){
       return;
    }
@@ -231,24 +231,24 @@ const login=()=>{
         otpCaptcha:null,
         remeberMe:rememberMe.value,
       })
-      .then((res:AxiosResponse)=>{            
+      .then((res:AxiosResponse)=>{
             res=res.data
             if(res.code!=0){
               //ElMessage.error(res.message)
               getImageCaptcha()
             }else{
               //清空路由复用信息?
-              api.auth(res.data)              
+              api.auth(res.data)
               api.navigate({})
               router.push("/dashboard/home")
-              
-            }                  
-           // res.data.token&&localStorage.setItem('token',res.data.token)            
+
+            }
+           // res.data.token&&localStorage.setItem('token',res.data.token)
           })
       .catch((err:AxiosError)=>{
           console.log(err.message)
           Promise.reject(err)
-      })          
+      })
 }
 
 const switchTab=(index:number):void=>{
