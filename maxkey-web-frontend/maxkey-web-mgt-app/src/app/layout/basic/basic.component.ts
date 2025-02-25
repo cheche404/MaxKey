@@ -46,8 +46,8 @@ import { LayoutDefaultOptions } from '../../theme/layout-default';
               width: 450px;
               margin-top: 12px;"
           >
-            <span style="color: #000099;">Max</span>
-            <span style="color: #FFD700;">Key</span>
+            <span style="color: #000099;">Digi</span>
+            <span style="color: #FFD700;">Win</span>
             {{ 'mxk.title' | i18n }}
           </div>
         </a>
@@ -117,14 +117,14 @@ import { LayoutDefaultOptions } from '../../theme/layout-default';
         <router-outlet></router-outlet>
       </ng-template>
     </layout-default>
-    <global-footer style="border-top: 1px solid #e5e5e5; min-height: 120px; text-shadow: 0 1px 0 #fff;margin:0;">
-      <div style="margin-top: 30px">
-        MaxKey {{ version }}<br />
-        Copyright
-        <i nz-icon nzType="copyright"></i> {{ copyrightYear }} <a href="//www.maxkey.top" target="_blank">http://www.maxkey.top</a><br />
-        Licensed under the Apache License, Version 2.0
-      </div>
-    </global-footer>
+<!--    <global-footer style="border-top: 1px solid #e5e5e5; min-height: 120px; text-shadow: 0 1px 0 #fff;margin:0;">-->
+<!--      <div style="margin-top: 30px">-->
+<!--        MaxKey {{ version }}<br />-->
+<!--        Copyright-->
+<!--        <i nz-icon nzType="copyright"></i> {{ copyrightYear }} <a href="//www.maxkey.top" target="_blank">http://www.maxkey.top</a><br />-->
+<!--        Licensed under the Apache License, Version 2.0-->
+<!--      </div>-->
+<!--    </global-footer>-->
     <setting-drawer *ngIf="showSettingDrawer"></setting-drawer>
     <theme-btn></theme-btn>
   `

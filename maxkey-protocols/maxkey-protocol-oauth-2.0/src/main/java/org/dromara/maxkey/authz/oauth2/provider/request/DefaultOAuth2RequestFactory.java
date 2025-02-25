@@ -1,22 +1,22 @@
 /*
  * Copyright 2006-2011 the original author or authors.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
  * the License. You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
  * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations under the License.
  */
 package org.dromara.maxkey.authz.oauth2.provider.request;
 
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.*;
 
+import com.alibaba.fastjson.JSONObject;
 import org.apache.commons.lang3.StringUtils;
 import org.dromara.maxkey.authz.oauth2.common.OAuth2Constants;
 import org.dromara.maxkey.authz.oauth2.common.exceptions.InvalidClientException;
@@ -34,10 +34,10 @@ import org.springframework.security.core.authority.AuthorityUtils;
 /**
  * Default implementation of {@link OAuth2RequestFactory} which initializes fields from the parameters map, validates
  * grant types and scopes, and fills in scopes with the default values from the client if they are missing.
- * 
+ *
  * @author Dave Syer
  * @author Amanda Anganes
- * 
+ *
  */
 public class DefaultOAuth2RequestFactory implements OAuth2RequestFactory {
 
@@ -46,6 +46,9 @@ public class DefaultOAuth2RequestFactory implements OAuth2RequestFactory {
 	private SecurityContextAccessor securityContextAccessor = new DefaultSecurityContextAccessor();
 
 	private boolean checkUserScopes = false;
+
+	private static final String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+	private static final int NONCE_LENGTH = 16; // Rancher 通常用 16
 
 	public DefaultOAuth2RequestFactory(ClientDetailsService clientDetailsService) {
 		this.clientDetailsService = clientDetailsService;
@@ -61,7 +64,7 @@ public class DefaultOAuth2RequestFactory implements OAuth2RequestFactory {
 	/**
 	 * Flag to indicate that scopes should be interpreted as valid authorities. No scopes will be granted to a user
 	 * unless they are permitted as a granted authority to that user.
-	 * 
+	 *
 	 * @param checkUserScopes the checkUserScopes to set (default false)
 	 */
 	public void setCheckUserScopes(boolean checkUserScopes) {
@@ -73,23 +76,34 @@ public class DefaultOAuth2RequestFactory implements OAuth2RequestFactory {
 		String clientId = authorizationParameters.get(OAuth2Constants.PARAMETER.CLIENT_ID);
 		String state = authorizationParameters.get(OAuth2Constants.PARAMETER.STATE);
 		String redirectUri = authorizationParameters.get(OAuth2Constants.PARAMETER.REDIRECT_URI);
+
 		//oauth 2.1 PKCE
 		String codeChallenge = authorizationParameters.get(OAuth2Constants.PARAMETER.CODE_CHALLENGE);
 		String codeChallengeMethod = authorizationParameters.get(OAuth2Constants.PARAMETER.CODE_CHALLENGE_METHOD);
 		Set<String> responseTypes = OAuth2Utils.parseParameterList(authorizationParameters
-				.get(OAuth2Constants.PARAMETER.RESPONSE_TYPE));
+			.get(OAuth2Constants.PARAMETER.RESPONSE_TYPE));
 
 		Set<String> scopes = extractScopes(authorizationParameters, clientId);
-		
-		AuthorizationRequest request = new AuthorizationRequest(authorizationParameters,
-				Collections.<String, String> emptyMap(), clientId, scopes, null, null, false, state, redirectUri,
-				responseTypes,codeChallenge,codeChallengeMethod);
 
-		ClientDetails clientDetails = clientDetailsService.loadClientByClientId(clientId,true);		
+		AuthorizationRequest request = new AuthorizationRequest(authorizationParameters,
+			Collections.<String, String> emptyMap(), clientId, scopes, null, null, false, state, redirectUri,
+			responseTypes,codeChallenge,codeChallengeMethod);
+
+		ClientDetails clientDetails = clientDetailsService.loadClientByClientId(clientId,true);
 		request.setResourceIdsAndAuthoritiesFromClientDetails(clientDetails);
 
 		return request;
 
+	}
+
+	// 生成随机 nonce Rancher
+	public static String generateNonce() {
+		SecureRandom random = new SecureRandom();
+		StringBuilder nonce = new StringBuilder(NONCE_LENGTH);
+		for (int i = 0; i < NONCE_LENGTH; i++) {
+			nonce.append(CHARSET.charAt(random.nextInt(CHARSET.length())));
+		}
+		return nonce.toString();
 	}
 
 	public OAuth2Request createOAuth2Request(AuthorizationRequest request) {
@@ -123,7 +137,7 @@ public class DefaultOAuth2RequestFactory implements OAuth2RequestFactory {
 
 	public TokenRequest createTokenRequest(AuthorizationRequest authorizationRequest, String grantType) {
 		TokenRequest tokenRequest = new TokenRequest(authorizationRequest.getRequestParameters(),
-				authorizationRequest.getClientId(), authorizationRequest.getScope(), grantType);
+			authorizationRequest.getClientId(), authorizationRequest.getScope(), grantType);
 		return tokenRequest;
 	}
 
@@ -156,7 +170,7 @@ public class DefaultOAuth2RequestFactory implements OAuth2RequestFactory {
 		Set<String> authorities = AuthorityUtils.authorityListToSet(securityContextAccessor.getAuthorities());
 		for (String scope : scopes) {
 			if (authorities.contains(scope) || authorities.contains(scope.toUpperCase())
-					|| authorities.contains("ROLE_" + scope.toUpperCase())) {
+				|| authorities.contains("ROLE_" + scope.toUpperCase())) {
 				result.add(scope);
 			}
 		}

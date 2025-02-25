@@ -1,10 +1,10 @@
 {
-	"app.title": "Security Management",
+	"app.title": "Unified Authentication Management",
 	"mxk": {
-		"title": " Identity Management",
+		"title": "Unified Authentication Management",
 		"login": {
-			"title": "MaxKey",
-			"title.sub": "Leading-Edge Identity and Access Management",
+			"title": "Digiwin",
+			"title.sub": "Unified Authentication",
 			"tab-credentials": "Account",
 			"tab-mobile": "Mobile",
 			"tab-qrscan": "QRScan",

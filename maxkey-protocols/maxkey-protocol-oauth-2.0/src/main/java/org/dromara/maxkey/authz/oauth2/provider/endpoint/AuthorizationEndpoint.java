@@ -13,34 +13,18 @@
 
 package org.dromara.maxkey.authz.oauth2.provider.endpoint;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.Principal;
-import java.security.SecureRandom;
-import java.util.*;
-
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.xml.bind.DatatypeConverter;
 import org.dromara.maxkey.authn.annotation.CurrentUser;
 import org.dromara.maxkey.authn.web.AuthorizationUtils;
 import org.dromara.maxkey.authz.oauth2.common.OAuth2AccessToken;
 import org.dromara.maxkey.authz.oauth2.common.OAuth2Constants;
-import org.dromara.maxkey.authz.oauth2.common.exceptions.InvalidClientException;
-import org.dromara.maxkey.authz.oauth2.common.exceptions.InvalidRequestException;
-import org.dromara.maxkey.authz.oauth2.common.exceptions.OAuth2Exception;
-import org.dromara.maxkey.authz.oauth2.common.exceptions.RedirectMismatchException;
-import org.dromara.maxkey.authz.oauth2.common.exceptions.UnapprovedClientAuthenticationException;
-import org.dromara.maxkey.authz.oauth2.common.exceptions.UnsupportedResponseTypeException;
-import org.dromara.maxkey.authz.oauth2.common.exceptions.UserDeniedAuthorizationException;
+import org.dromara.maxkey.authz.oauth2.common.exceptions.*;
 import org.dromara.maxkey.authz.oauth2.common.util.OAuth2Utils;
-import org.dromara.maxkey.authz.oauth2.provider.AuthorizationRequest;
-import org.dromara.maxkey.authz.oauth2.provider.OAuth2Authentication;
-import org.dromara.maxkey.authz.oauth2.provider.OAuth2Request;
-import org.dromara.maxkey.authz.oauth2.provider.OAuth2RequestValidator;
-import org.dromara.maxkey.authz.oauth2.provider.TokenRequest;
+import org.dromara.maxkey.authz.oauth2.provider.*;
 import org.dromara.maxkey.authz.oauth2.provider.approval.DefaultUserApprovalHandler;
 import org.dromara.maxkey.authz.oauth2.provider.approval.UserApprovalHandler;
 import org.dromara.maxkey.authz.oauth2.provider.code.AuthorizationCodeServices;
@@ -61,20 +45,22 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.support.SessionStatus;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriTemplate;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.Principal;
+import java.security.SecureRandom;
+import java.util.*;
 
 /**
  * <p>
@@ -122,45 +108,48 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 
 	private Object implicitLock = new Object();
 
+	private static final String CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+	private static final int NONCE_LENGTH = 16; // Rancher 通常用 16
+
 
 	public void setErrorPage(String errorPage) {
 		this.errorPage = errorPage;
 	}
 
 	@Operation(summary = "OAuth 2.0 认证接口", description = "传递参数应用ID，自动完成跳转认证拼接",method="GET")
-    @GetMapping(value = {OAuth2Constants.ENDPOINT.ENDPOINT_BASE + "/{id}"})
-    public ModelAndView authorize(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            @PathVariable("id") String id){
-        ClientDetails  clientDetails =getClientDetailsService().loadClientByClientId(id,true);
-        _logger.debug("clientDetails {}",clientDetails);
-        String authorizationUrl = "";
-        try {
-            authorizationUrl = String.format(OAUTH_V20_AUTHORIZATION_URL,
-                            clientDetails.getClientId(),
-                            URLEncoder.encode(clientDetails.getRegisteredRedirectUri().toArray()[0].toString(),"UTF-8"));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+	@GetMapping(value = {OAuth2Constants.ENDPOINT.ENDPOINT_BASE + "/{id}"})
+	public ModelAndView authorize(
+		HttpServletRequest request,
+		HttpServletResponse response,
+		@PathVariable("id") String id){
+		ClientDetails  clientDetails =getClientDetailsService().loadClientByClientId(id,true);
+		_logger.debug("clientDetails {}",clientDetails);
+		String authorizationUrl = "";
+		try {
+			authorizationUrl = String.format(OAUTH_V20_AUTHORIZATION_URL,
+				clientDetails.getClientId(),
+				URLEncoder.encode(clientDetails.getRegisteredRedirectUri().toArray()[0].toString(),"UTF-8"));
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 
-        _logger.debug("authorizationUrl {}" , authorizationUrl);
+		_logger.debug("authorizationUrl {}" , authorizationUrl);
 
-        return WebContext.redirect(authorizationUrl);
-    }
+		return WebContext.redirect(authorizationUrl);
+	}
 
 	@Operation(summary = "OAuth 2.0 认证接口", description = "传递参数client_id,response_type,redirect_uri等",method="GET")
 	@GetMapping(value = {
-								OAuth2Constants.ENDPOINT.ENDPOINT_AUTHORIZE,
-								OAuth2Constants.ENDPOINT.ENDPOINT_TENCENT_IOA_AUTHORIZE
-							})
+		OAuth2Constants.ENDPOINT.ENDPOINT_AUTHORIZE,
+		OAuth2Constants.ENDPOINT.ENDPOINT_TENCENT_IOA_AUTHORIZE
+	})
 	public ModelAndView authorize(
-	            Map<String, Object> model,
-	            @RequestParam Map<String, String> parameters,
-	            @CurrentUser UserInfo currentUser,
-	            SessionStatus sessionStatus) {
+		Map<String, Object> model,
+		@RequestParam Map<String, String> parameters,
+		@CurrentUser UserInfo currentUser,
+		SessionStatus sessionStatus) {
 
-		 Principal principal=(Principal)AuthorizationUtils.getAuthentication();
+		Principal principal=(Principal)AuthorizationUtils.getAuthentication();
 		// Pull out the authorization request first, using the OAuth2RequestFactory. All further logic should
 		// query off of the authorization request instead of referring back to the parameters map. The contents of the
 		// parameters map will be stored without change in the AuthorizationRequest object once it is created.
@@ -180,7 +169,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 
 			if (!(principal instanceof Authentication) || !((Authentication) principal).isAuthenticated()) {
 				throw new InsufficientAuthenticationException(
-						"User must be authenticated with Spring Security before authorization can be completed.");
+					"User must be authenticated with Spring Security before authorization can be completed.");
 			}
 
 			ClientDetails client = getClientDetailsService().loadClientByClientId(authorizationRequest.getClientId(),true);
@@ -196,7 +185,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 				logger.info("Parameter redirectUri "+redirectUriParameter);
 
 				throw new RedirectMismatchException(
-						"A redirectUri must be either supplied or preconfigured in the ClientDetails");
+					"A redirectUri must be either supplied or preconfigured in the ClientDetails");
 			}
 			authorizationRequest.setRedirectUri(resolvedRedirect);
 
@@ -207,7 +196,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 			// Some systems may allow for approval decisions to be remembered or approved by default. Check for
 			// such logic here, and set the approved flag on the authorization request accordingly.
 			authorizationRequest = userApprovalHandler.checkForPreApproval(authorizationRequest,
-					(Authentication) principal);
+				(Authentication) principal);
 			// is this call necessary?
 			boolean approved = userApprovalHandler.isApproved(authorizationRequest, (Authentication) principal);
 			authorizationRequest.setApproved(approved);
@@ -219,20 +208,20 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 				}
 				if (responseTypes.contains(OAuth2Constants.PARAMETER.CODE)) {
 					return new ModelAndView(getAuthorizationCodeResponse(authorizationRequest,
-							(Authentication) principal));
+						(Authentication) principal));
 				}
 			}
 			Apps  app = (Apps)WebContext.getAttribute(WebConstants.AUTHORIZE_SIGN_ON_APP);
 			//session中为空或者id不一致重新加载
-            if (app == null || !app.getId().equalsIgnoreCase(authorizationRequest.getClientId())) {
-                app = appsService.get(authorizationRequest.getClientId());
-                WebContext.setAttribute(WebConstants.AUTHORIZE_SIGN_ON_APP, app);
-            }
+			if (app == null || !app.getId().equalsIgnoreCase(authorizationRequest.getClientId())) {
+				app = appsService.get(authorizationRequest.getClientId());
+				WebContext.setAttribute(WebConstants.AUTHORIZE_SIGN_ON_APP, app);
+			}
 
 			// Place auth request into the model so that it is stored in the session
 			// for approveOrDeny to use. That way we make sure that auth request comes from the session,
 			// so any auth request parameters passed to approveOrDeny will be ignored and retrieved from the session.
-            momentaryService.put(currentUser.getSessionId(), "authorizationRequest", authorizationRequest);
+			momentaryService.put(currentUser.getSessionId(), "authorizationRequest", authorizationRequest);
 
 			return getUserApprovalPageResponse(model, authorizationRequest, (Authentication) principal);
 
@@ -249,11 +238,11 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 	//approval must post
 	@PostMapping(value  = {OAuth2Constants.ENDPOINT.ENDPOINT_AUTHORIZE+"/approval"}, params = OAuth2Constants.PARAMETER.USER_OAUTH_APPROVAL)
 	@ResponseBody
-	public Message< String> authorizeApproveOrDeny(@RequestParam Map<String, String> approvalParameters,@CurrentUser UserInfo currentUser) {
+	public Message<String> authorizeApproveOrDeny(@RequestParam Map<String, String> approvalParameters,@CurrentUser UserInfo currentUser) {
 		Principal principal = (Principal)AuthorizationUtils.getAuthentication();
 		if (!(principal instanceof Authentication)) {
 			throw new InsufficientAuthenticationException(
-					"User must be authenticated with Spring Security before authorizing an access token.");
+				"User must be authenticated with Spring Security before authorizing an access token.");
 		}
 
 		AuthorizationRequest authorizationRequest = (AuthorizationRequest) momentaryService.get(currentUser.getSessionId(), "authorizationRequest");
@@ -275,12 +264,12 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 
 		if (!authorizationRequest.isApproved()) {
 			return new Message<>(Message.FAIL,
-					getUnsuccessfulRedirect(
-				            authorizationRequest,
-				            new UserDeniedAuthorizationException("User denied access"),
-				            responseTypes.contains(OAuth2Constants.PARAMETER.TOKEN)
-				        )
-					);
+				getUnsuccessfulRedirect(
+					authorizationRequest,
+					new UserDeniedAuthorizationException("User denied access"),
+					responseTypes.contains(OAuth2Constants.PARAMETER.TOKEN)
+				)
+			);
 		}
 
 		if (responseTypes.contains(OAuth2Constants.PARAMETER.TOKEN)) {
@@ -292,7 +281,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 
 	// We need explicit approval from the user.
 	private ModelAndView getUserApprovalPageResponse(Map<String, Object> model,
-			AuthorizationRequest authorizationRequest, Authentication principal) {
+																									 AuthorizationRequest authorizationRequest, Authentication principal) {
 		logger.debug("Loading user approval page: " + userApprovalPage);
 		model.putAll(userApprovalHandler.getUserApprovalRequest(authorizationRequest, principal));
 		return new ModelAndView(userApprovalPage, model);
@@ -316,7 +305,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 	}
 
 	private OAuth2AccessToken getAccessTokenForImplicitGrant(TokenRequest tokenRequest,
-			OAuth2Request storedOAuth2Request) {
+																													 OAuth2Request storedOAuth2Request) {
 		OAuth2AccessToken accessToken = null;
 		// These 1 method calls have to be atomic, otherwise the ImplicitGrantService can have a race condition where
 		// one thread removes the token request before another has a chance to redeem it.
@@ -330,8 +319,8 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 	private String getAuthorizationCodeResponse(AuthorizationRequest authorizationRequest, Authentication authUser) {
 		try {
 			String  successfulRedirect = getSuccessfulRedirect(
-					authorizationRequest,
-					generateCode(authorizationRequest, authUser)
+				authorizationRequest,
+				generateCode(authorizationRequest, authUser)
 			);
 
 			//往grafana跳转登录，写入oauth_state参数
@@ -341,11 +330,13 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 				successfulRedirect = successfulRedirect + "&state="+state;
 				HttpServletRequest request = WebContext.getRequest();
 				String serverName = request.getServerName();
-                WebContext.setCookie(WebContext.getResponse(),serverName,OAUTH_STATE_COOKIE_NAME,hashStatecode,10);
+				WebContext.setCookie(WebContext.getResponse(),serverName,OAUTH_STATE_COOKIE_NAME,hashStatecode,10);
 			} else if(successfulRedirect.contains("9123")){
 				if (successfulRedirect.contains("http://")) {
 					successfulRedirect = successfulRedirect.replace("http://", "https://");
 				}
+			} else if(successfulRedirect.contains("9124")){
+				successfulRedirect = successfulRedirect.replace("9124", "8443").replace("verify-auth", "home");
 			}
 
 			_logger.debug("successfulRedirect " + successfulRedirect);
@@ -411,7 +402,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 	}
 
 	private String generateCode(AuthorizationRequest authorizationRequest, Authentication authentication)
-			throws AuthenticationException {
+		throws AuthenticationException {
 
 		try {
 
@@ -458,7 +449,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 	}
 
 	private String getUnsuccessfulRedirect(AuthorizationRequest authorizationRequest, OAuth2Exception failure,
-			boolean fragment) {
+																				 boolean fragment) {
 
 		if (authorizationRequest == null || authorizationRequest.getRedirectUri() == null) {
 			// we have no redirect for the user. very sad.
@@ -503,7 +494,7 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 			builder = UriComponentsBuilder.fromUri(redirectUri);
 		}
 		template.scheme(redirectUri.getScheme()).port(redirectUri.getPort()).host(redirectUri.getHost())
-				.userInfo(redirectUri.getUserInfo()).path(redirectUri.getPath());
+			.userInfo(redirectUri.getUserInfo()).path(redirectUri.getPath());
 		if (StringUtils.hasLength(redirectUri.getFragment())) {
 			StringBuilder values = new StringBuilder();
 			if (redirectUri.getFragment() != null) {
@@ -621,6 +612,16 @@ public class AuthorizationEndpoint extends AbstractEndpoint {
 		byte[] randomBytes = new byte[32];
 		secureRandom.nextBytes(randomBytes);
 		return  Base64.getUrlEncoder().encodeToString(randomBytes);
+	}
+
+	// 生成随机 nonce Rancher
+	public static String generateNonce() {
+		SecureRandom random = new SecureRandom();
+		StringBuilder nonce = new StringBuilder(NONCE_LENGTH);
+		for (int i = 0; i < NONCE_LENGTH; i++) {
+			nonce.append(CHARSET.charAt(random.nextInt(CHARSET.length())));
+		}
+		return nonce.toString();
 	}
 
 }

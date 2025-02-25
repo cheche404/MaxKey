@@ -1,10 +1,10 @@
 {
-	"app.title": "身份安全管理系统",
+	"app.title": "统一认证管理",
 	"mxk": {
-		"title": " 身份安全管理系统",
+		"title": " 统一认证管理",
 		"login": {
-			"title": "MaxKey",
-			"title.sub": "业界领先的IAM身份管理和认证产品",
+			"title": "Digiwin",
+			"title.sub": "统一认证",
 			"tab-credentials": "账号登录",
 			"tab-mobile": "手机登录",
 			"tab-qrscan": "扫码登录",
